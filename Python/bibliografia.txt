@@ -1,0 +1,6 @@
+https://pandas.pydata.org/docs/reference/api/pandas.concat.html
+https://interactivechaos.com/es/manual/tutorial-de-pandas/el-metodo-dropna
+pd.crosstab -> Archibos de clase (2_2_Pandas.ipynb)
+https://es.stackoverflow.com/questions/517726/c%C3%B3mo-sacar-el-valor-m%C3%A1ximo-de-una-agrupaci%C3%B3n-con-python a base de esto busqye funcionalidades
+https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.idxmax.html
+https://www.freecodecamp.org/espanol/news/metodos-de-cadenas-split-y-join-en-python/

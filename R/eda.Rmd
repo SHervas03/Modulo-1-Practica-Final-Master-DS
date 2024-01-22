@@ -1,0 +1,331 @@
+---
+title: "Eda"
+autor: Sergio Hervás Aragón
+---
+
+#### **Instaladion de paquetes**
+
+```{r}
+# install.packages("dplyr")
+# install.packages("lubridate")
+# install.packages("tidyr")
+# install.packages("ggplot2")
+# install.packages("plotly")
+# install.packages("countrycode")
+# install.packages('patchwork')
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(plotly)
+library(countrycode)
+library(patchwork)
+```
+
+#### **1. Carga el dataset como dataframe y, borra si hay alguna columna que no aporte información como IDs. **
+
+```{r}
+
+read_csv_and_delete_IDs <- function(name){
+  df <- read.csv(name)
+  # 1*
+  df$fecha <- ymd(df$fecha)
+  df <- df %>% select(-X)
+  return(df)
+}
+
+df <- read_csv_and_delete_IDs(name = "da_market_data.csv")
+
+```
+
+#### **2. Obtén el rango de las fechas ¿Para cuántos años tenemos registros de los datos?**
+
+```{r}
+
+date_range <- function(df) {
+  # 2*
+  # 3*
+  return(apply(df['fecha'], 2, range))
+}
+
+cat("El primer registro es", date_range(df)[1,], "y el ultimo de", date_range(df)[2,])
+
+```
+
+```{r}
+df
+```
+
+#### **3. Sin importar el año, ¿Qué día del mes se reportan más registros? ¿Cuál es el que menos?**
+
+```{r}
+
+frequency_of_months <- function(df){
+  # 4*
+  # 5*
+  # 6*
+  return(table(wday(df$fecha)))
+}
+
+parse_days <- function(number){
+  value = ""
+  # 7
+  value <- switch (number,
+                   "Lunes",
+                   "Martes",
+                   "Miércoles",
+                   "Jueves",
+                   "Viernes",
+                   "Sábado",
+                   "Domingo"
+  )
+  return(value)
+}
+
+cat("El dia del mes con más reportes es el dia", parse_days(which.max(frequency_of_months(df))),"con",max(frequency_of_months(df)),"registros, y el que menos es el", parse_days(which.min(frequency_of_months(df))),"con",min(frequency_of_months(df)))
+
+```
+#### **4. Si analizamos la variable precio, parece que hay precios del mercado energético que aparecen en negativo, toma todos aquellos valores que sean negativos y, transformalos en nulo ¿Qué cantidad hay de valores nulos?. **
+
+```{r}
+
+
+transformation_from_negative_to_null <- function(df){
+  # 8*
+  # 9*
+  # 10*
+  # 11*
+  # 12*
+  df$precio <- as.numeric(df$precio)
+  df <- df %>% mutate(precio = replace(precio, precio < 0, NA))
+  return(df)
+}
+
+null_amount <- function(df){
+  # 13*
+  null_amount <- sum(is.na(df['precio']))
+  return(null_amount)
+}
+
+
+
+df <- transformation_from_negative_to_null(df)
+total_nulls <- sum(is.na(df))
+cat("La cantidad de valores nulos en la fila precio es de", null_amount(df))
+
+
+```
+#### **4.1 Asigna un cero a todos los valores nulos en un dataframe, excepto a aquellos que pertenecen al mercado de Dinamarca (DK1 y DK2), elimina todas las filas restantes con valores nulos y compara el número total de datos antes y después de la eliminación de nulos.**
+
+```{r}
+
+null_assignment <- function(df){
+  # 14*
+  # 15*
+  # 16*
+  # 17*
+  # 18*
+  # 19*
+  # 20*
+  
+  df <- df %>%  mutate(across(everything(), ~ replace_na(.,0))) %>% filter(., sistema != "DK1" & sistema != "DK2") 
+  return(df)
+}
+ 
+df <- null_assignment(df)
+
+cat("Antes de borrar los nulos habia", total_nulls, "y despues de borrar todos los nulos quedan", sum(is.na(df)))
+
+```
+
+#### **5. La variable bandera presenta los siguientes valores 0 y 1, estos valores están referidos al horario de invierno 0 y horario de verano 1, crea una nueva variable categórica llamada ESTACION que tenga los valores invierno y verano. Investiga la función recode del paquete dplyr**
+
+
+```{r}
+
+value_substitution <- function(df){
+  # 21*
+  # 22*
+  # 23*
+  # 24*
+  df <- df %>% mutate(ESTACION = recode(bandera, `0` = "invierno", `1` = "verano"))
+  return(df)
+}
+
+df <- value_substitution(df)
+
+```
+
+
+#### **6. La columna tipo de moneda tiene dos valores 1 que es €/MWh y 2 GBP/MWh, recodifica la propia variable a los valores categóricos Euros y Libras. Por lo tanto, tenemos precios en dos monedas diferentes, analiza el precio medio del mercado energético en función de la estación y el tipo de moneda.**
+
+
+```{r}
+currency_type_analysis <- function(df){
+  df$tipo_moneda <- recode(df$tipo_moneda, `1` = "Euro", `2` = "Libras")
+  # 25*
+  # 26*
+  analysis <- df %>% group_by(ESTACION, tipo_moneda) %>% summarise(precio_medio = mean(precio), total_records = n())
+  print(analysis)
+  return(df)
+}
+df <- currency_type_analysis(df)
+```
+
+#### **7. Toma la columnas fecha_actualizacion y, toma únicamente la parte de la fecha sin contar la hora y, obtén la diferencia en días entre la fecha de actualización y la columna fecha. Tras obtener dicha diferencia muestra el promedio de días de actualización, cuanto más alto mejor, eso querrá decir que datos muy antiguos siguen teniendo registros de actualización: Pista, investiga la función difftime y as.Date**
+
+```{r}
+day_difference <- function(df){
+  # 27*
+  # 28*
+  # 29*
+  df$fecha_actualizacion <- as.POSIXct(df$fecha_actualizacion, format="%Y-%m-%d %H:%M:%S")
+  df <- df %>% mutate(diferencia_dias = difftime(as.Date(df$fecha_actualizacion), df$fecha , units = "days"))
+}
+
+df <- day_difference(df)
+
+cat("El promedio de dias de actualizacion es de", mean(df$diferencia_dias))
+
+```
+#### **8. Filtra el dataset por el tipo de moneda Euros y el mercado español, visualiza la serie completa respecto a la fecha de registro del precio del mercado energético. Actualmente, vivimos en tiempos de bastante inestabilidad en el mercado energético ¿se ve reflejado en la visualización?**
+
+
+```{r}
+dataset_filtration <- df %>% filter(.,tipo_moneda == "Euro" & sistema == "ES")
+# 30*
+# 31*
+# 32*
+# 33*
+ggplot(dataset_filtration, aes(x = fecha, y = precio)) + geom_point(shape=1, col = 'gray') +  geom_smooth() + labs(x = "Precio ( EUROS )", y = "Fecha", title = "Registro del mercado Español")   
+```
+
+#### **9. Toma el precio medio en euros por cada año del mercado energético de Francia y España. Visualiza la evolución del precio medio de ambos mercados**
+
+```{r}
+
+market_registration <- df %>% group_by(tipo_moneda, sistema, fecha) %>% filter(., sistema %in% c("ES","FR")) %>% summarise(precio_medio = mean(precio))
+# 34*
+ggplot(market_registration, aes(x = fecha, y = precio_medio, color=sistema)) + geom_point(shape=1, col = 'gray') +  geom_smooth() + labs(x = "Precio ( EUROS )", y = "Fecha", title = "Registro del mercado Español")   
+
+```
+
+#### **10. Sin importar la moneda, muestra un top 10 para los países que tengan el precio medio más alto en el mercado energético y, el top 10 con el valor más pequeño.**
+
+```{r}
+# 35*
+# 36*
+price_analysis <- df %>% group_by(sistema) %>% summarise(precio_medio = mean(precio)) %>% arrange(., desc(precio_medio))
+
+# 37*
+high_prices <- head(price_analysis, 10)
+low_prices <- tail(price_analysis, 10)
+
+low_price_chart <- plot_ly(
+  x = high_prices$sistema,
+  y = high_prices$precio_medio,
+  type = "bar",
+  name = "Paises con media de precio alto"
+)
+low_price_chart <- low_price_chart %>% layout(
+         xaxis = list(title = "Paises"),
+         yaxis = list(title = "Precio medio"))
+
+high_price_chart <- plot_ly(
+  x = low_prices$sistema,
+  y = low_prices$precio_medio,
+  type = "bar",
+  name = "Paises con media de precio bajo"
+)
+high_price_chart <- high_price_chart %>% layout(title = 'Promedio de precio medio',
+         xaxis = list(title = "Paises"),
+         yaxis = list(title = "Precio medio"))
+
+# https://plotly.com/r/subplots/
+average_price <- subplot(low_price_chart, high_price_chart, nrows = 2)
+average_price
+
+```
+#### **observacion ejercicio 10:** 
+
+analisis_3 <- df %>% group_by(sistema) %>% summarise(precio_medio = mean(precio)) %>% arrange(., desc(precio_medio)) %>% mutate(sistema = countrycode(sistema, origin =  "iso2c", destination = "country.name"))
+
+Error devido a que la libreria countrycode no encuentra los valores ELE, FRE, NO1, NO2, NO3, NO4, NO5, SE1, SE2, SE3, SE4 en sus registros
+
+Warning: There was 1 warning in `mutate()`.
+ℹ In argument: `sistema = countrycode(sistema, origin = "iso2c", destination = "country.name")`.
+Caused by warning:
+! Some values were not matched unambiguously: ELE, FRE, NO1, NO2, NO3, NO4, NO5, SE1, SE2, SE3, SE4, SYSWarning: Ignoring 10 observationsWarning: Ignoring 10 observations
+ 
+
+#### **Bibliografia:**
+Ejercicio 1:
+1* - https://dplyr.tidyverse.org/
+Ejercicio 2:
+2* - https://r-coder.com/apply-r/
+3* - Archivo '4_6_Funciones_CLASE.Rmd
+Ejercicio 3:
+4* - https://estadistica-dma.ulpgc.es/cursoR4ULPGC/6h-Fechas.html
+5* - https://estadisticool.com/encuentre-el-indice-del-valor-maximo-y-minimo-del-vector-y-la-fila-del-marco-de-datos-en-r-2-ejemplos/?utm_content=cmp-true
+6* - Archivo '4_6_Funciones_CLASE.Rmd
+7* - https://www.datamentor.io/r-programming/switch-function
+Ejercicio 4:
+8* - https://www.geeksforgeeks.org/how-to-fix-invalid-factor-level-na-generated-in-r/
+9* - https://www.programmingr.com/r-error-messages/fixing-the-r-warning-invalid-factor-level-na-generated/
+10* -https://stackoverflow.com/questions/16819956/warning-message-in-invalid-factor-level-na-generated
+11* - https://dplyr.tidyverse.org/reference/mutate.html
+12* - https://bookdown.org/ddiannae/curso-rdata/mutate.html
+13* - https://www.educative.io/answers/what-is-isna-function-in-r
+14* - https://stackoverflow.com/questions/61479529/dplyr-function-mutate-at-throws-error-expecting-a-one-sided-formula-a-function
+15* - https://stackoverflow.com/questions/67254566/unable-to-perform-recoding-in-r-for-factor-variables:
+16* - https://dplyr.tidyverse.org/reference/across.html
+17* - https://rpubs.com/StefanoSanfilippo/656542
+18* - https://www.statology.org/not-in-r/
+19* - https://www.rdocumentation.org/packages/dplyr/versions/0.7.8/topics/filter
+20* - https://community.rstudio.com/t/why-i-cant-use-replace-na-with-mutate/168997
+Ejercicio 5:
+21* - https://github.com/tidyverse/dplyr/issues/3253
+22* - https://dplyr.tidyverse.org/reference/recode.html
+23* - https://rsanchezs.gitbooks.io/rprogramming/content/chapter9/mutate.html
+24* - https://stackoverflow.com/questions/75568275/using-mutate-but-keep-getting-the-unexpected-error
+Ejercicio 6:
+25* - https://dplyr.tidyverse.org/reference/summarise.html
+26* - Archivo '5_1_Dplyr.Rmd'
+Ejercicio 7:
+27* - https://estadistica-dma.ulpgc.es/cursoR4ULPGC/6h-Fechas.html
+28* - https://www.neonscience.org/resources/learning-hub/tutorials/dc-convert-date-time-posix-r
+29* - https://www.statology.org/r-difftime-function/
+Ejercicio 8:
+30* - https://rpubs.com/daniballari/ggplot
+31* - https://verso.mat.uam.es/~joser.berrendero/R/introggplot2.html
+32* - http://www.sthda.com/english/wiki/ggplot2-point-shapes
+33* - Archivo '6_2_Ggplot.Rmd'
+Ejercicio 9:
+34* - Archivo '6_2_Ggplot.Rmd'
+Ejercicio 10:
+35* - https://tereom.github.io/est_computacional/02-Basic-transf/02-Basic-transf
+36* - https://www.rdocumentation.org/packages/countrycode/versions/1.5.0/topics/countrycode
+37* - https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/head
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
